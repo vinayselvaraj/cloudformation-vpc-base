@@ -1,0 +1,172 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  
+  "Description" : "This template creates VPC with a subnet in each availability zone.  This template can be used to create stacks in any region.",
+  
+  "Parameters" : {
+    "VPCCidr" : {
+      "Description" : "CIDR block to use for the VPC",
+      "Type" : "String",
+      "Default" : "10.10.0.0/16"
+    },
+    "SubnetACidr" : {
+      "Description" : "CIDR block to use for public subnet A",
+      "Type" : "String",
+      "Default" : "10.10.0.0/24"
+    },
+    "SubnetBCidr" : {
+      "Description" : "CIDR block to use for public subnet B",
+      "Type" : "String",
+      "Default" : "10.10.1.0/24"
+    },
+    "SubnetCCidr" : {
+      "Description" : "CIDR block to use for public subnet C",
+      "Type" : "String",
+      "Default" : "10.10.2.0/24"
+    },
+    "SubnetDCidr" : {
+      "Description" : "CIDR block to use for public subnet D",
+      "Type" : "String",
+      "Default" : "10.10.3.0/24"
+    }
+  },
+  
+  "Mappings" : {
+    
+    "AWSRegionAZCount" : {
+      "us-east-1"      : { "AZCount" : "4"},
+      "us-west-1"      : { "AZCount" : "2"},
+      "us-west-2"      : { "AZCount" : "3"},
+      "eu-west-1"      : { "AZCount" : "3"},
+      "eu-central-1"   : { "AZCount" : "2"},
+      "sa-east-1"      : { "AZCount" : "3"},
+      "ap-southeast-1" : { "AZCount" : "2"},
+      "ap-southeast-2" : { "AZCount" : "2"},
+      "ap-northeast-1" : { "AZCount" : "2"},
+      "ap-northeast-2" : { "AZCount" : "2"}
+    }
+  },
+  
+  "Conditions" : {
+    "ThreeAZs" : { "Fn::Equals" : [{ "Fn::FindInMap" : [ "AWSRegionAZCount", { "Ref" : "AWS::Region" }, "AZCount" ] }, "3" ]},
+    "FourAZs"  : { "Fn::Equals" : [{ "Fn::FindInMap" : [ "AWSRegionAZCount", { "Ref" : "AWS::Region" }, "AZCount" ] }, "4" ]},
+    
+    "ThreeOrMoreAZs" : {
+      "Fn::Or" : [
+        {"Condition" : "ThreeAZs"},
+        {"Condition" : "FourAZs"}
+      ]
+    }
+  },
+  
+  "Resources" : {
+    
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : { "Ref" : "VPCCidr" },
+        "EnableDnsHostnames" : "true"
+      }
+    },
+    
+    "IGW" : {
+      "Type" : "AWS::EC2::InternetGateway"
+    },
+    
+    "VPCGatewayAttachment" : {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "InternetGatewayId" : { "Ref" : "IGW" },
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    
+    "VPCPublicSubnetRouteTable" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" }
+      }
+    },
+    
+    "VPCPublicIGWRoute" : {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "VPCPublicSubnetRouteTable" },
+        "GatewayId" : { "Ref" : "IGW"},
+        "DestinationCidrBlock" : "0.0.0.0/0"
+      }
+    },
+    
+    "VPCPublicRouteTableAssocSubnetA" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "VPCPublicSubnetRouteTable" },
+        "SubnetId" : { "Ref" : "SubnetA" }
+      }
+    },
+    
+    "VPCPublicRouteTableAssocSubnetB" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "VPCPublicSubnetRouteTable" },
+        "SubnetId" : { "Ref" : "SubnetB" }
+      }
+    },
+    
+    "VPCPublicRouteTableAssocSubnetC" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Condition" : "ThreeOrMoreAZs",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "VPCPublicSubnetRouteTable" },
+        "SubnetId" : { "Ref" : "SubnetC" }
+      }
+    },
+
+    "VPCPublicRouteTableAssocSubnetD" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Condition" : "FourAZs",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "VPCPublicSubnetRouteTable" },
+        "SubnetId" : { "Ref" : "SubnetD" }
+      }
+    },
+    
+    "SubnetA" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "CidrBlock" : { "Ref" : "SubnetACidr" },
+        "AvailabilityZone" : { "Fn::Select" : [ "0", { "Fn::GetAZs" : "" } ]}
+      }
+    },
+    
+    "SubnetB" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "CidrBlock" : { "Ref" : "SubnetBCidr" },
+        "AvailabilityZone" : { "Fn::Select" : [ "1", { "Fn::GetAZs" : "" } ]}
+      }
+    },
+    
+    "SubnetC" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Condition" : "ThreeOrMoreAZs",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "CidrBlock" : { "Ref" : "SubnetCCidr" },
+        "AvailabilityZone" : { "Fn::Select" : [ "2", { "Fn::GetAZs" : "" } ]}
+      }
+    },
+
+    "SubnetD" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Condition" : "FourAZs",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPC" },
+        "CidrBlock" : { "Ref" : "SubnetDCidr" },
+        "AvailabilityZone" : { "Fn::Select" : [ "3", { "Fn::GetAZs" : "" } ]}
+      }
+    }
+  }
+}
